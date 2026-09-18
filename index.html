@@ -588,7 +588,7 @@ input:focus-visible {
     transform: translateY(0);
 }
 
-/* VIDEO SECTION */
+/* VIDEO SECTION & CUSTOM EXTERNAL CONTROLS */
 
 .video-layout {
     width: min(850px, 100%);
@@ -602,20 +602,23 @@ input:focus-visible {
     margin: 15px 0 25px;
 }
 
-.video-frame {
+.video-wrapper {
     width: 100%;
     max-width: 800px;
-    aspect-ratio: 16 / 9;
-    max-height: 70vh;
     margin: 0 auto;
-    background: #000000;
+    background: #18101c;
     border: 1px solid rgba(255, 255, 255, 0.2);
     border-radius: 20px;
     overflow: hidden;
     box-shadow: 0 20px 50px rgba(0, 0, 0, 0.6);
-    display: flex;
-    align-items: center;
-    justify-content: center;
+}
+
+.video-frame {
+    position: relative;
+    width: 100%;
+    aspect-ratio: 16 / 9;
+    max-height: 60vh;
+    background: #000;
 }
 
 .video-frame video {
@@ -623,6 +626,61 @@ input:focus-visible {
     height: 100%;
     object-fit: contain;
     background: #000000;
+}
+
+/* DUDUKAN KONTROL VIDEO DI LUAR / DI BAWAH VIDEO */
+.custom-video-controls {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    padding: 14px 20px;
+    background: rgba(30, 18, 32, 0.95);
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.vid-btn {
+    background: transparent;
+    border: none;
+    color: var(--pink);
+    font-size: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 4px;
+    transition: transform .2s ease;
+}
+
+.vid-btn:hover {
+    transform: scale(1.15);
+}
+
+.vid-progress-bar {
+    flex: 1;
+    height: 5px;
+    -webkit-appearance: none;
+    appearance: none;
+    background: rgba(255, 255, 255, 0.2);
+    border-radius: 5px;
+    outline: none;
+    cursor: pointer;
+}
+
+.vid-progress-bar::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: var(--pink);
+    cursor: pointer;
+    box-shadow: 0 0 8px rgba(230, 166, 184, 0.6);
+}
+
+.vid-time {
+    font-size: 12px;
+    color: var(--muted);
+    font-family: monospace;
+    min-width: 85px;
 }
 
 .video-bottom {
@@ -733,7 +791,7 @@ input:focus-visible {
     .memory-card { max-width: 170px; padding: 6px 6px 22px; }
     .memory-card::after { font-size: 11px; bottom: 5px; }
     .memory-ending { font-size: 22px; }
-    .video-frame { aspect-ratio: 16 / 9; max-height: 50vh; border-radius: 14px; }
+    .video-frame { aspect-ratio: 16 / 9; max-height: 50vh; }
     .video-layout h2 { margin-bottom: 20px; }
     .letter-content { min-height: 250px; }
 }
@@ -857,13 +915,24 @@ input:focus-visible {
 <section id="scene-video" class="scene">
     <div class="video-layout">
         <div class="eyebrow">A little movie for you</div>
-        <h2>Press play,<br>and watch this special video.</h2>
+        <h2 id="videoTitle">Press play,<br>and watch this special video.</h2>
 
-        <div class="video-frame">
-            <video id="mainVideo" controls playsinline preload="auto">
-                <source src="assets/vidio.mp4" type="video/mp4">
-                Browser kamu belum mendukung video.
-            </video>
+        <div class="video-wrapper" id="videoWrapper">
+            <div class="video-frame">
+                <!-- Disable Picture-In-Picture & hilangkan tombol bawaan yang mengganggu -->
+                <video id="mainVideo" playsinline preload="auto" controlsList="nodownload noplaybackrate nopictureinpicture" disablePictureInPicture>
+                    <source src="assets/vidio.mp4" type="video/mp4">
+                    Browser kamu belum mendukung video.
+                </video>
+            </div>
+            
+            <!-- KONTROL VIDEO DI LUAR & DI BAWAH PEMUTAR VIDEO -->
+            <div class="custom-video-controls">
+                <button id="btnPlayPause" class="vid-btn">▶</button>
+                <input type="range" id="vidProgress" class="vid-progress-bar" value="0" min="0" max="100">
+                <span id="vidTime" class="vid-time">0:00 / 0:00</span>
+                <button id="btnFullscreen" class="vid-btn">⛶</button>
+            </div>
         </div>
 
         <div class="video-bottom">Musik akan istirahat sebentar saat video diputar ♡</div>
@@ -880,7 +949,7 @@ input:focus-visible {
     </div>
 </section>
 
-<!-- 8. FINAL (KADO SINGLE & ESTETIK) -->
+<!-- 8. FINAL -->
 <section id="scene-final" class="scene">
     <div class="final-box">
         <div class="eyebrow">Satu hal penting lagi... 🤫</div>
@@ -943,6 +1012,14 @@ const memoryCards = document.querySelectorAll(".memory-card");
 const memoryDots = document.querySelectorAll(".memory-dot");
 const memoryEnding = document.getElementById("memoryEnding");
 
+// Custom Video Control Elements
+const btnPlayPause = document.getElementById("btnPlayPause");
+const vidProgress = document.getElementById("vidProgress");
+const vidTime = document.getElementById("vidTime");
+const btnFullscreen = document.getElementById("btnFullscreen");
+const videoWrapper = document.getElementById("videoWrapper");
+const videoTitle = document.getElementById("videoTitle");
+
 let sceneTimer = null;
 let musicStarted = false;
 let typingRunId = 0;
@@ -972,7 +1049,18 @@ function showScene(sceneName) {
     if (sceneName === "video") {
         pauseMusic();
         mainVideo.currentTime = 0;
-        mainVideo.play().catch(() => {
+        
+        // Auto scroll halus: pertama ke judul, lalu bergeser ke tengah-tengah pemutar video
+        videoTitle.scrollIntoView({ behavior: 'smooth', block: 'start' });
+
+        setTimeout(() => {
+            videoWrapper.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }, 1000);
+
+        mainVideo.play().then(() => {
+            btnPlayPause.textContent = "❚❚";
+        }).catch(() => {
+            btnPlayPause.textContent = "▶";
             console.log("Autoplay video memerlukan interaksi pengguna.");
         });
     } else {
@@ -1092,7 +1180,7 @@ if (giftButton) {
 }
 
 /* =====================================================
-   GALERI FOTO MEMORY
+   GALERI FOTO MEMORY & AUTO-SCROLL ANIMATION
 ===================================================== */
 function startMemoryAnimation() {
     memoryTimers.forEach(t => clearTimeout(t));
@@ -1106,12 +1194,15 @@ function startMemoryAnimation() {
         let t = setTimeout(() => {
             card.classList.add("show");
             if (memoryDots[idx]) memoryDots[idx].classList.add("active");
+            
+            card.scrollIntoView({ behavior: 'smooth', block: 'center' });
         }, idx * 1200);
         memoryTimers.push(t);
     });
 
     let endTimer = setTimeout(() => {
         memoryEnding.classList.add("show");
+        memoryEnding.scrollIntoView({ behavior: 'smooth', block: 'center' });
 
         sceneTimer = setTimeout(() => {
             showScene("video");
@@ -1122,10 +1213,53 @@ function startMemoryAnimation() {
 }
 
 /* =====================================================
-   KONTROL VIDEO & MUSIK
+   KONTROL VIDEO KOSTUM DI BAWAH PEMUTAR
 ===================================================== */
+function formatTime(seconds) {
+    const mins = Math.floor(seconds / 60);
+    const secs = Math.floor(seconds % 60);
+    return `${mins}:${secs < 10 ? '0' : ''}${secs}`;
+}
+
+btnPlayPause.addEventListener("click", () => {
+    if (mainVideo.paused) {
+        mainVideo.play();
+        btnPlayPause.textContent = "❚❚";
+    } else {
+        mainVideo.pause();
+        btnPlayPause.textContent = "▶";
+    }
+});
+
+mainVideo.addEventListener("timeupdate", () => {
+    if (mainVideo.duration) {
+        const pct = (mainVideo.currentTime / mainVideo.duration) * 100;
+        vidProgress.value = pct;
+        vidTime.textContent = `${formatTime(mainVideo.currentTime)} / ${formatTime(mainVideo.duration)}`;
+    }
+});
+
+vidProgress.addEventListener("input", () => {
+    if (mainVideo.duration) {
+        mainVideo.currentTime = (vidProgress.value / 100) * mainVideo.duration;
+    }
+});
+
+btnFullscreen.addEventListener("click", () => {
+    if (mainVideo.requestFullscreen) {
+        mainVideo.requestFullscreen();
+    } else if (mainVideo.webkitRequestFullscreen) {
+        mainVideo.webkitRequestFullscreen();
+    }
+});
+
 mainVideo.addEventListener("play", function() {
     pauseMusic();
+    btnPlayPause.textContent = "❚❚";
+});
+
+mainVideo.addEventListener("pause", function() {
+    btnPlayPause.textContent = "▶";
 });
 
 mainVideo.addEventListener("ended", function() {
